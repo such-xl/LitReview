@@ -8,13 +8,21 @@ env/
 venv/
 ENV/
 .venv
+*.egg-info/
+dist/
+build/
 
 # 数据文件
-data/pdfs/*
-data/processed/*
-data/database/*
-data/logs/*
-!data/.gitkeep
+data/pdfs/*.pdf
+data/database/*.db
+data/database/*.sqlite
+data/chroma/
+data/logs/*.log
+
+# 但保留目录结构
+!data/pdfs/.gitkeep
+!data/database/.gitkeep
+!data/logs/.gitkeep
 
 # 环境变量
 .env
@@ -24,12 +32,19 @@ data/logs/*
 .idea/
 *.swp
 *.swo
+*~
 
 # 系统文件
 .DS_Store
 Thumbs.db
+*.bak
 
 # 测试
 .pytest_cache/
 .coverage
 htmlcov/
+*.cover
+
+# 临时文件
+*.tmp
+*.log

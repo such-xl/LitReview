@@ -1,0 +1,24 @@
+# 无Web界面版本 - 只包含核心功能
+
+# PDF解析
+PyMuPDF
+
+# 向量数据库
+chromadb
+
+# 嵌入模型
+sentence-transformers
+
+# LLM集成
+ollama
+
+# 数据处理
+pandas
+numpy
+sqlalchemy
+
+# 工具库
+python-dotenv
+pydantic
+pydantic-settings
+tqdm

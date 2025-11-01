@@ -1,5 +1,6 @@
 # PDF解析
 PyMuPDF>=1.23.0
+mineru[core]
 
 # 向量数据库
 chromadb>=0.4.0

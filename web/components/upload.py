@@ -9,7 +9,15 @@ def render_upload_page():
     
     st.markdown("上传PDF论文文件，系统将自动解析并创建索引。")
     
-    parser_type = st.selectbox("选择解析器", ["pymupdf", "marker"])
+    parser_type = st.selectbox(
+        "选择解析器", 
+        ["pymupdf", "marker", "mineru"],
+        help="MinerU: 高质量GPU加速 | Marker: 中等质量 | PyMuPDF: 快速轻量"
+    )
+    
+    use_gpu = False
+    if parser_type == "mineru":
+        use_gpu = st.checkbox("使用GPU加速", value=True)
     
     uploaded_files = st.file_uploader(
         "选择PDF文件",
@@ -29,7 +37,7 @@ def render_upload_page():
                     tmp_file.write(uploaded_file.read())
                     tmp_path = tmp_file.name
                 
-                parser = ParserFactory.create_parser(parser_type)
+                parser = ParserFactory.create_parser(parser_type, use_gpu=use_gpu)
                 parsed = parser.parse(tmp_path)
                 
                 paper_id = st.session_state.sql_manager.add_paper(

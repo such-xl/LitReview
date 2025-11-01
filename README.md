@@ -14,7 +14,7 @@
 
 ## 技术栈
 
-- **PDF解析**: Marker / PyMuPDF
+- **PDF解析**: MinerU / Marker / PyMuPDF
 - **向量数据库**: ChromaDB
 - **嵌入模型**: sentence-transformers
 - **LLM集成**: LiteLLM + Ollama
@@ -27,6 +27,9 @@
 
 ```bash
 pip install -r requirements.txt
+
+# 可选：安装 MinerU 用于高质量 PDF 解析
+pip install magic-pdf[full]
 ```
 
 ### 2. 配置环境变量
@@ -58,6 +61,29 @@ ollama pull llama2
 streamlit run web/app.py
 ```
 
+## PDF 解析器选择
+
+项目支持多种 PDF 解析器，可根据需求选择：
+
+| 解析器 | 优势 | 适用场景 |
+|--------|------|----------|
+| **MinerU** | GPU加速、高质量、支持公式表格 | 推荐，适合大批量处理 |
+| **Marker** | 质量好、支持公式 | 中等规模处理 |
+| **PyMuPDF** | 速度快、轻量级 | 快速预览、简单文档 |
+| **LLM** | 最高质量、智能理解 | 小批量高质量需求 |
+
+### 使用 MinerU
+
+```python
+from src.parsers import ParserFactory
+
+# 创建 MinerU 解析器
+parser = ParserFactory.create_parser("mineru", use_gpu=True)
+result = parser.parse("data/pdfs/paper.pdf")
+```
+
+详细使用说明请查看 [MinerU 集成指南](docs/MINERU_INTEGRATION.md)
+
 ## 项目结构
 
 ```
@@ -83,9 +109,9 @@ literature-review-rag/
 ## 开发进度
 
 - [x] Phase 1: 基础设施搭建
-- [ ] Phase 2: PDF解析
-- [ ] Phase 3: LLM集成
-- [ ] Phase 4: 向量检索
+- [x] Phase 2: PDF解析 (PyMuPDF/Marker/MinerU)
+- [x] Phase 3: LLM集成
+- [x] Phase 4: 向量检索
 - [ ] Phase 5: 综述生成
 - [ ] Phase 6: Web界面
 

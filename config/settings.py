@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     EMBEDDING_DEVICE: str = "cpu"
     
     # PDF解析配置
-    PDF_PARSER: str = "marker"
+    PDF_PARSER: str = "marker"  # 可选: pymupdf/marker/llm/mineru
+    USE_GPU: bool = True  # MinerU是否使用GPU加速
     
     # 其他配置
     MAX_TOKENS: int = 4000

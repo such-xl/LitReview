@@ -21,5 +21,6 @@ class PDFParser(ABC):
 
 from .parser_factory import ParserFactory
 from .text_chunker import TextChunker
+from .mineru_chunker import MinerUParser, MinerUChunker
 
-__all__ = ['ParsedPaper', 'PDFParser', 'ParserFactory', 'TextChunker']
+__all__ = ['ParsedPaper', 'PDFParser', 'ParserFactory', 'TextChunker', 'MinerUParser', 'MinerUChunker']

@@ -7,10 +7,12 @@
 ## 功能特性
 
 - 📄 自动解析PDF论文（含公式、表格）
-- 🤖 AI提取论文关键信息
+- 🤖 LLM智能提取元数据（标题、作者、摘要等）
+- 💾 自动存入数据库（SQLite + ChromaDB）
 - 🔍 语义检索相关论文
 - 📝 自动生成文献综述
-- 🌐 支持多种LLM（API和本地模型）
+- 🌐 支持多种LLM（Ollama/OpenAI/Claude）
+- 🖥️ 友好的Web界面
 
 ## 技术栈
 
@@ -72,17 +74,28 @@ streamlit run web/app.py
 | **PyMuPDF** | 速度快、轻量级 | 快速预览、简单文档 |
 | **LLM** | 最高质量、智能理解 | 小批量高质量需求 |
 
-### 使用 MinerU
+### 使用 MinerU + LLM
 
 ```python
-from src.parsers import ParserFactory
+from src.parsers.mineru_chunker import create_mineru_parser
 
-# 创建 MinerU 解析器
-parser = ParserFactory.create_parser("mineru", use_gpu=True)
+# 创建带LLM的MinerU解析器（推荐）
+parser = create_mineru_parser(
+    use_gpu=True,
+    llm_provider="ollama",
+    llm_model="llama2"
+)
 result = parser.parse("data/pdfs/paper.pdf")
+
+print(result.title)      # LLM智能提取
+print(result.authors)    # 高准确率
+print(result.abstract)   # 完整摘要
 ```
 
-详细使用说明请查看 [MinerU 集成指南](docs/MINERU_INTEGRATION.md)
+详细使用说明:
+- [MinerU 集成指南](docs/MINERU_INTEGRATION.md)
+- [MinerU + LLM 使用](docs/MINERU_LLM_USAGE.md)
+- [Web上传功能](docs/WEB_UPLOAD_GUIDE.md)
 
 ## 项目结构
 
@@ -110,10 +123,38 @@ literature-review-rag/
 
 - [x] Phase 1: 基础设施搭建
 - [x] Phase 2: PDF解析 (PyMuPDF/Marker/MinerU)
-- [x] Phase 3: LLM集成
-- [x] Phase 4: 向量检索
-- [ ] Phase 5: 综述生成
-- [ ] Phase 6: Web界面
+- [x] Phase 3: LLM集成 (Ollama/OpenAI/Claude)
+- [x] Phase 4: 向量检索 (ChromaDB)
+- [x] Phase 5: LLM智能元数据提取
+- [x] Phase 6: Web上传界面
+- [ ] Phase 7: 综述生成
+- [ ] Phase 8: 完善Web界面
+
+## 测试
+
+### 测试完整上传流程
+
+```bash
+# 测试单个PDF（使用LLM + GPU）
+python scripts/test_upload_pipeline.py data/pdfs/paper.pdf
+
+# 不使用LLM
+python scripts/test_upload_pipeline.py data/pdfs/paper.pdf --no-llm
+
+# 不使用GPU
+python scripts/test_upload_pipeline.py data/pdfs/paper.pdf --no-gpu
+```
+
+### 使用Web界面
+
+1. 启动应用: `streamlit run web/app.py`
+2. 在侧边栏配置LLM（推荐Ollama）
+3. 点击"📤 上传论文"
+4. 选择MinerU解析器
+5. 勾选"使用LLM提取元数据"
+6. 上传PDF文件
+
+详见 [Web上传指南](docs/WEB_UPLOAD_GUIDE.md)
 
 ## 许可证
 

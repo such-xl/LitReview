@@ -3,20 +3,23 @@ from pathlib import Path
 from typing import List, Dict
 from . import PDFParser, ParsedPaper
 import re
+import json
 
 class MinerUParser(PDFParser):
     """使用 MinerU (GPU加速) 解析 PDF"""
     
-    def __init__(self, use_gpu=True, output_dir="./data/processed"):
+    def __init__(self, use_gpu=True, output_dir="./data/processed", llm=None):
         """初始化MinerU解析器
         
         Args:
             use_gpu: 是否使用GPU加速
             output_dir: 输出目录
+            llm: LLM实例，用于提取元数据
         """
         self.use_gpu = use_gpu
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
+        self.llm = llm
         self._check_gpu()
     
     def _check_gpu(self):
@@ -50,14 +53,23 @@ class MinerUParser(PDFParser):
             print(f"⚠ MinerU失败，回退到PyMuPDF")
             return self._parse_with_pymupdf(pdf_path)
         
-        # 读取Markdown
+        # 读取Json和Markdown
+        try:
+            json_text = self._read_json_output(pdf_path)
+        except FileNotFoundError:
+            print("⚠ 未找到JSON文件，跳过LLM提取")
+            json_text = "{}"
+        
         markdown_text = self._read_markdown_output(pdf_path)
+        
+        # 用LLM提取元数据
+        metadata = self._extract_metadata_with_llm(json_text, markdown_text)
         
         # 解析结构化信息
         return ParsedPaper(
-            title=self._extract_title(markdown_text),
-            authors=self._extract_authors(markdown_text),
-            abstract=self._extract_abstract(markdown_text),
+            title=metadata.get('title') or self._extract_title(markdown_text),
+            authors=metadata.get('authors') or self._extract_authors(markdown_text),
+            abstract=metadata.get('abstract') or self._extract_abstract(markdown_text),
             full_text=markdown_text,
             markdown_text=markdown_text,
             sections=self._extract_sections(markdown_text),
@@ -105,8 +117,132 @@ class MinerUParser(PDFParser):
                 with open(md_path, 'r', encoding='utf-8') as f:
                     return f.read()
         
+        # 搜索所有.md文件
+        for md_path in self.output_dir.rglob("*.md"):
+            return md_path.read_text(encoding='utf-8')
+        
         raise FileNotFoundError(f"未找到Markdown文件: {pdf_name}")
     
+    def _read_json_output(self, pdf_path: Path) -> str:
+        """读取生成的JSON文件"""
+        pdf_name = pdf_path.stem
+        possible_paths = [
+            self.output_dir / pdf_name / "auto" / f"{pdf_name}.json",
+            self.output_dir / pdf_name / f"{pdf_name}.json",
+            self.output_dir / f"{pdf_name}.json",
+        ]
+
+        for json_path in possible_paths:
+            if json_path.exists():
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    return f.read()
+        
+        # 搜索所有.json文件
+        for json_path in self.output_dir.rglob("*.json"):
+            return json_path.read_text(encoding='utf-8')
+
+        raise FileNotFoundError(f"未找到JSON文件: {pdf_name}")
+    
+    def _extract_metadata_with_llm(self, json_text: str, markdown_text: str) -> Dict:
+        """使用LLM从JSON和Markdown中提取元数据"""
+        if not self.llm:
+            return {}
+        
+        # 获取LLM类型
+        llm_type = self.llm.__class__.__name__.replace('Model', '').lower()
+        
+        try:
+            first_page = self._get_first_page_content(json_text, markdown_text)
+            
+            prompt = f"""从以下论文首页内容中提取元数据：
+
+{first_page}
+
+请提取以下信息（如果找不到则返回null）：
+- title: 论文标题
+- authors: 作者列表（数组）
+- affiliations: 作者单位（数组）
+- abstract: 摘要
+- keywords: 关键词（数组）
+- publisher: 出版商/会议名称
+- year: 发表年份"""
+            
+            schema = {
+                "title": "string",
+                "authors": ["string"],
+                "affiliations": ["string"],
+                "abstract": "string",
+                "keywords": ["string"],
+                "publisher": "string",
+                "year": "string"
+            }
+            
+            result = self.llm.generate_structured(prompt, schema)
+            print("\n" + "="*60)
+            print("✓ LLM提取成功")
+            print("="*60)
+            print(f"  标题: {result.get('title', 'N/A')}")
+            print(f"  作者: {', '.join(result.get('authors', [])) if result.get('authors') else 'N/A'}")
+            print(f"  年份: {result.get('year', 'N/A')}")
+            print(f"  出版商: {result.get('publisher', 'N/A')}")
+            print(f"  关键词: {', '.join(result.get('keywords', [])) if result.get('keywords') else 'N/A'}")
+            print(f"  摘要长度: {len(result.get('abstract', ''))} 字符")
+            print("="*60 + "\n")
+            return result
+        except Exception as e:
+            error_msg = str(e)
+            print("\n" + "="*60)
+            print("❌ LLM提取失败")
+            print("="*60)
+            print(f"  LLM类型: {llm_type}")
+            
+            if "503" in error_msg:
+                print("  错误类型: 服务不可用 (503)")
+                if llm_type == "ollama":
+                    print("  解决方案: 请检查Ollama是否运行 (ollama serve)")
+                elif llm_type == "gemini":
+                    print("  解决方案: 请检查API Key是否有效，或网络是否可访问Google API")
+                else:
+                    print("  解决方案: 请检查LLM服务是否运行")
+            elif "timeout" in error_msg.lower():
+                print("  错误类型: 请求超时")
+                print("  解决方案: 请检查网络连接或增加超时时间")
+            elif "Connection" in error_msg or "connect" in error_msg.lower():
+                print("  错误类型: 连接失败")
+                if llm_type == "ollama":
+                    print("  解决方案: 请检查Ollama服务地址 (http://localhost:11434)")
+                elif llm_type == "gemini":
+                    print("  解决方案: 请检查网络连接，确保可以访问Google API")
+                else:
+                    print("  解决方案: 请检查LLM服务地址和端口")
+            elif "API" in error_msg or "key" in error_msg.lower():
+                print("  错误类型: API密钥错误")
+                print("  解决方案: 请检查API Key是否正确")
+            else:
+                print(f"  错误信息: {error_msg}")
+            print("  回退方案: 将使用正则表达式提取")
+            print("="*60 + "\n")
+        
+        return {}
+    
+    def _get_first_page_content(self, json_text: str, markdown_text: str) -> str:
+        """获取第一页内容"""
+        try:
+            data = json.loads(json_text)
+            # 尝试从JSON中获取第一页
+            if isinstance(data, list) and len(data) > 0:
+                first_page_blocks = [b for b in data if b.get("page_idx") == 0 and b.get("type") == "text"]
+                page_text = " ".join(b["text"] for b in first_page_blocks)
+                return page_text
+            elif isinstance(data, dict):
+                pages = data.get('pages', [])
+                if pages:
+                    return json.dumps(pages[0], ensure_ascii=False, indent=2)
+        except:
+            pass
+        
+        # 回退到Markdown前1000字符
+        return markdown_text[:1000]
     def _extract_title(self, text: str) -> str:
         """提取标题"""
         lines = [l.strip() for l in text.split('\n') if l.strip()]
@@ -173,6 +309,29 @@ class MinerUParser(PDFParser):
         return []
 
 
+def create_mineru_parser(use_gpu=True, llm_provider="ollama", llm_model="llama2"):
+    """便捷工厂方法：创建带LLM的MinerU解析器
+    
+    Args:
+        use_gpu: 是否使用GPU加速
+        llm_provider: LLM提供商 (ollama/openai/claude/custom)
+        llm_model: 模型名称
+    
+    Returns:
+        配置好的MinerUParser实例
+    """
+    from src.llm import LLMFactory
+    
+    try:
+        llm = LLMFactory.create_llm(provider=llm_provider, model=llm_model)
+        print(f"✓ LLM已加载: {llm_provider}/{llm_model}")
+    except Exception as e:
+        print(f"⚠ LLM加载失败: {e}，将使用正则表达式")
+        llm = None
+    
+    return MinerUParser(use_gpu=use_gpu, llm=llm)
+
+
 class MinerUChunker:
     """MinerU解析器的分块和存储工具（用于向量数据库）"""
     
@@ -204,8 +363,18 @@ class MinerUChunker:
 
 
 if __name__ == "__main__":
-    # 测试MinerU解析器
-    parser = MinerUParser(use_gpu=True)
+    from src.llm import LLMFactory
+    
+    # 创建LLM实例（可选）
+    try:
+        llm = LLMFactory.create_llm(provider="ollama", model="llama2")
+        print("✓ LLM已加载，将使用智能元数据提取")
+    except Exception as e:
+        print(f"⚠ LLM加载失败: {e}，将使用正则表达式提取")
+        llm = None
+    
+    # 创建解析器
+    parser = MinerUParser(use_gpu=True, llm=llm)
     
     pdf_file = "data/pdfs/a.pdf"
     if Path(pdf_file).exists():

@@ -3,7 +3,6 @@ from .llm_interface import LLMInterface
 from .ollama_model import OllamaModel
 from .litellm_model import LiteLLMModel
 from .openai_compatible import OpenAICompatibleModel
-
 class LLMFactory:
     @staticmethod
     def create_llm(
@@ -19,14 +18,18 @@ class LLMFactory:
             base_url = base_url or "http://localhost:11434"
             return OllamaModel(base_url=base_url, model=model)
         
+        elif provider == "gemini":
+            if not api_key:
+                raise ValueError("gemini模式需要提供api_key")
+            model = model or "gemini-pro"
+            return GeminiModel(api_key=api_key, model=model)
+        
         elif provider == "custom":
-            # 使用OpenAI兼容API（不依赖LiteLLM）
             if not base_url or not api_key:
                 raise ValueError("custom模式需要提供base_url和api_key")
             return OpenAICompatibleModel(model=model, api_key=api_key, base_url=base_url)
         
         elif provider in ["openai", "claude", "gpt-4", "gpt-3.5-turbo"]:
-            # 使用LiteLLM支持多种API
             if provider == "openai" or provider.startswith("gpt"):
                 model = model or provider if provider.startswith("gpt") else "gpt-3.5-turbo"
             elif provider == "claude":

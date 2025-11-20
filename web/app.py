@@ -45,13 +45,17 @@ def main():
     
     llm_provider = st.sidebar.selectbox(
         "LLM提供商", 
-        ["ollama", "openai", "claude", "custom"]
+        ["ollama", "openai", "claude", "gemini", "custom"]
     )
     
     if llm_provider == "ollama":
         model = st.sidebar.text_input("模型名称", value="llama2")
         base_url = st.sidebar.text_input("Ollama URL", value="http://localhost:11434")
         api_key = None
+    elif llm_provider == "gemini":
+        model = st.sidebar.text_input("模型名称", value="gemini-pro")
+        api_key = st.sidebar.text_input("API Key", type="password")
+        base_url = None
     elif llm_provider == "custom":
         model = st.sidebar.text_input("模型名称", value="gpt-3.5-turbo")
         base_url = st.sidebar.text_input("API URL", value="https://api.openai.com/v1")

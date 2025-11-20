@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from scripts.analyze_papers import ArticleMetadata
 import hashlib
 import json
 
@@ -19,7 +20,7 @@ class SQLManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # 论文基本信息表
+        # 论文表
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS papers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,69 +28,51 @@ class SQLManager:
                 authors TEXT,
                 year INTEGER,
                 venue TEXT,
-                doi TEXT,
-                arxiv_id TEXT,
+                abstract TEXT,
+                keywords TEXT,
+                contributions TEXT,
+                ai_summary TEXT,
                 pdf_path TEXT NOT NULL,
                 pdf_hash TEXT UNIQUE,
-                raw_text TEXT,
-                markdown_text TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # AI提取的信息表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS paper_analysis (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                paper_id INTEGER NOT NULL,
-                research_question TEXT,
-                methodology TEXT,
-                main_findings TEXT,
-                key_contributions TEXT,
-                limitations TEXT,
-                future_work TEXT,
-                keywords TEXT,
-                analyzed_by TEXT,
-                analyzed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (paper_id) REFERENCES papers(id)
-            )
-        """)
-        
-        # 论文关系表
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS paper_relations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                source_paper_id INTEGER,
-                target_paper_id INTEGER,
-                relation_type TEXT,
-                FOREIGN KEY (source_paper_id) REFERENCES papers(id),
-                FOREIGN KEY (target_paper_id) REFERENCES papers(id)
             )
         """)
         
         # 创建索引
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_papers_title ON papers(title)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_papers_year ON papers(year)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_paper ON paper_analysis(paper_id)")
         
         conn.commit()
         conn.close()
     
-    def add_paper(self, title: str, pdf_path: str, authors: Optional[str] = None,
-                  year: Optional[int] = None, venue: Optional[str] = None,
-                  raw_text: Optional[str] = None, markdown_text: Optional[str] = None) -> int:
+    def add_paper(self, pdf_path: str, meta: ArticleMetadata) -> int:
         """添加论文"""
         pdf_hash = self._compute_file_hash(pdf_path)
+        
+        # 序列化作者列表
+        authors_json = json.dumps([a.dict() for a in meta.authors], ensure_ascii=False) if meta.authors else None
         
         conn = self.get_connection()
         cursor = conn.cursor()
         
         try:
             cursor.execute("""
-                INSERT INTO papers (title, authors, year, venue, pdf_path, pdf_hash, raw_text, markdown_text)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (title, authors, year, venue, pdf_path, pdf_hash, raw_text, markdown_text))
+                INSERT INTO papers (title, authors, year, venue, abstract, 
+                                  keywords, contributions, ai_summary, pdf_path, pdf_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                meta.title,
+                authors_json,
+                meta.year if meta.year > 0 else None,
+                meta.venue,
+                meta.abstract, 
+                json.dumps(meta.keywords, ensure_ascii=False) if meta.keywords else None,
+                json.dumps(meta.contributions, ensure_ascii=False) if meta.contributions else None,
+                meta.ai_summary, 
+                pdf_path, 
+                pdf_hash
+            ))
             
             paper_id = cursor.lastrowid
             conn.commit()
@@ -101,32 +84,44 @@ class SQLManager:
         finally:
             conn.close()
     
-    def add_analysis(self, paper_id: int, analysis_data: Dict[str, Any], analyzed_by: str) -> int:
-        """添加论文分析结果"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
+    def add_paper_from_metadata(self, metadata, pdf_path: str, 
+                                raw_text: Optional[str] = None, 
+                                markdown_text: Optional[str] = None) -> int:
+        """从 ArticleMetadata 对象添加论文
         
-        cursor.execute("""
-            INSERT INTO paper_analysis 
-            (paper_id, research_question, methodology, main_findings, key_contributions, 
-             limitations, future_work, keywords, analyzed_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            paper_id,
-            analysis_data.get('research_question'),
-            analysis_data.get('methodology'),
-            json.dumps(analysis_data.get('main_findings', [])),
-            json.dumps(analysis_data.get('key_contributions', [])),
-            json.dumps(analysis_data.get('limitations', [])),
-            analysis_data.get('future_work'),
-            json.dumps(analysis_data.get('keywords', [])),
-            analyzed_by
-        ))
+        Args:
+            metadata: ArticleMetadata 对象或字典
+            pdf_path: PDF文件路径
+            raw_text: 原始文本
+            markdown_text: Markdown文本
+        """
+        # 处理作者列表
+        authors_str = None
+        authors_json = None
+        if hasattr(metadata, 'authors') and metadata.authors:
+            # 生成简单的作者字符串
+            authors_str = ', '.join([a.name if hasattr(a, 'name') else str(a) for a in metadata.authors])
+            # 保存完整的JSON
+            authors_json = json.dumps(
+                [{'name': a.name, 'affiliation': a.affiliation} if hasattr(a, 'name') 
+                 else {'name': str(a), 'affiliation': ''} for a in metadata.authors],
+                ensure_ascii=False
+            )
         
-        analysis_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return analysis_id
+        return self.add_paper(
+            title=metadata.title if hasattr(metadata, 'title') else '',
+            pdf_path=pdf_path,
+            authors=authors_str,
+            authors_json=authors_json,
+            year=metadata.year if hasattr(metadata, 'year') and metadata.year > 0 else None,
+            venue=metadata.venue if hasattr(metadata, 'venue') else None,
+            abstract=metadata.abstract if hasattr(metadata, 'abstract') else None,
+            keywords=metadata.keywords if hasattr(metadata, 'keywords') else None,
+            contributions=metadata.contributions if hasattr(metadata, 'contributions') else None,
+            ai_summary=metadata.ai_summary if hasattr(metadata, 'ai_summary') else None,
+            raw_text=raw_text,
+            markdown_text=markdown_text
+        )
     
     def get_paper(self, paper_id: int) -> Optional[Dict[str, Any]]:
         """获取论文信息"""
@@ -138,7 +133,17 @@ class SQLManager:
         row = cursor.fetchone()
         conn.close()
         
-        return dict(row) if row else None
+        if row:
+            result = dict(row)
+            # 解析JSON字段
+            if result.get('authors_json'):
+                result['authors_list'] = json.loads(result['authors_json'])
+            if result.get('keywords'):
+                result['keywords_list'] = json.loads(result['keywords'])
+            if result.get('contributions'):
+                result['contributions_list'] = json.loads(result['contributions'])
+            return result
+        return None
     
     def get_all_papers(self) -> List[Dict[str, Any]]:
         """获取所有论文"""
@@ -150,27 +155,19 @@ class SQLManager:
         rows = cursor.fetchall()
         conn.close()
         
-        return [dict(row) for row in rows]
-    
-    def get_paper_analysis(self, paper_id: int) -> Optional[Dict[str, Any]]:
-        """获取论文分析结果"""
-        conn = self.get_connection()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT * FROM paper_analysis WHERE paper_id = ? ORDER BY analyzed_at DESC LIMIT 1", 
-                      (paper_id,))
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row:
+        results = []
+        for row in rows:
             result = dict(row)
             # 解析JSON字段
-            for field in ['main_findings', 'key_contributions', 'limitations', 'keywords']:
-                if result.get(field):
-                    result[field] = json.loads(result[field])
-            return result
-        return None
+            if result.get('authors_json'):
+                result['authors_list'] = json.loads(result['authors_json'])
+            if result.get('keywords'):
+                result['keywords_list'] = json.loads(result['keywords'])
+            if result.get('contributions'):
+                result['contributions_list'] = json.loads(result['contributions'])
+            results.append(result)
+        return results
+    
     
     def _compute_file_hash(self, file_path: str) -> str:
         """计算文件哈希值"""
@@ -179,3 +176,5 @@ class SQLManager:
             for chunk in iter(lambda: f.read(4096), b""):
                 hasher.update(chunk)
         return hasher.hexdigest()
+if __name__ == "__main__":
+    ...

@@ -19,8 +19,8 @@ def render_upload_page():
     with col1:
         parser_type = st.selectbox(
             "选择解析器", 
-            ["mineru", "marker", "pymupdf"],
-            help="MinerU: 高质量GPU加速 | Marker: 中等质量 | PyMuPDF: 快速轻量"
+            ["mineru"],
+            help="MinerU: 高质量GPU加速"
         )
     
     with col2:
@@ -39,23 +39,7 @@ def render_upload_page():
     
     if uploaded_files and st.button("开始导入", type="primary"):
         # 初始化LLM
-        llm = None
-        if use_llm:
-            try:
-                llm = LLMFactory.create_llm(
-                    provider=st.session_state.llm_provider,
-                    model=st.session_state.llm_model,
-                    api_key=st.session_state.llm_api_key,
-                    base_url=st.session_state.llm_base_url
-                )
-                st.success(f"✓ LLM已加载: {st.session_state.llm_provider}/{st.session_state.llm_model}")
-            except Exception as e:
-                error_msg = str(e)
-                if "503" in error_msg:
-                    st.warning("⚠ LLM服务不可用，将使用正则表达式提取。请检查Ollama是否运行。")
-                else:
-                    st.warning(f"⚠ LLM加载失败: {error_msg}，将使用正则表达式提取")
-                llm = None
+
         
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -89,36 +73,37 @@ def render_upload_page():
                 
                 unparsed_path.write_bytes(uploaded_file.read())
                 
+
                 # 创建解析器（MinerU支持LLM）
-                if parser_type == "mineru":
-                    from src.parsers.mineru_chunker import MinerUParser
-                    parser = MinerUParser(use_gpu=use_gpu, llm=llm)
-                else:
-                    parser = ParserFactory.create_parser(parser_type, use_gpu=use_gpu)
+                # if parser_type == "mineru":
+                #     from src.parsers.mineru_chunker import MinerUParser
+                #     parser = MinerUParser(use_gpu=use_gpu, llm=llm)
+                # else:
+                #     parser = ParserFactory.create_parser(parser_type, use_gpu=use_gpu)
                 
                 # 解析PDF（使用未解析目录的文件）
-                parsed = parser.parse(str(unparsed_path))
+                # parsed = parser.parse(str(unparsed_path))
                 
                 # 解析成功后，移动到已解析目录
-                parsed_path = parsed_dir / filename
-                unparsed_path.rename(parsed_path)
+                # parsed_path = parsed_dir / filename
+                # unparsed_path.rename(parsed_path)
                 
                 # 存入数据库（使用已解析目录的路径）
-                paper_id = st.session_state.sql_manager.add_paper(
-                    title=parsed.title,
-                    pdf_path=str(parsed_path),
-                    authors=', '.join(parsed.authors) if isinstance(parsed.authors, list) else parsed.authors,
-                    raw_text=parsed.full_text,
-                    markdown_text=parsed.markdown_text
-                )
+                # paper_id = st.session_state.sql_manager.add_paper(
+                #     title=parsed.title,
+                #     pdf_path=str(parsed_path),
+                #     authors=', '.join(parsed.authors) if isinstance(parsed.authors, list) else parsed.authors,
+                #     raw_text=parsed.full_text,
+                #     markdown_text=parsed.markdown_text
+                # )
                 
                 # 向量化存储
-                chunker = TextChunker(settings.CHUNK_SIZE, settings.CHUNK_OVERLAP)
-                chunks = chunker.chunk_text(parsed.full_text, {"paper_id": paper_id})
+                # chunker = TextChunker(settings.CHUNK_SIZE, settings.CHUNK_OVERLAP)
+                # chunks = chunker.chunk_text(parsed.full_text, {"paper_id": paper_id})
                 
-                if chunks:
-                    chunk_texts = [chunk["text"] for chunk in chunks]
-                    st.session_state.vector_manager.add_fulltext(paper_id, chunk_texts)
+                # if chunks:
+                #     chunk_texts = [chunk["text"] for chunk in chunks]
+                #     st.session_state.vector_manager.add_fulltext(paper_id, chunk_texts)
                 
                 success_count += 1
                 st.success(f"✓ {uploaded_file.name}")

@@ -8,10 +8,11 @@ sys.path.insert(0, str(project_root))
 from config import settings
 from src.database import SQLManager, VectorManager
 from src.retrieval import QueryEngine
-from web.components.upload import render_upload_page
+# from web.components.upload import render_upload_page
 from web.components.search import render_search_page
 from web.components.review_generator import render_review_page
 from web.components.papers import render_papers_page
+from web.components.upload_2 import render_upload_page
 
 st.set_page_config(
     page_title="LitReview - 智能文献综述助手",

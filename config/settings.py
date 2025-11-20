@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     TEMPERATURE: float = 0.3
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
-    
+    PDF_DIR:str = "data/pdfs" 
     class Config:
         env_file = ".env"
         extra = "allow"

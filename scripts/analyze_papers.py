@@ -73,6 +73,8 @@ def analyze_paper(paper_path,api_key,proxy):
         }
     )
     article = ArticleMetadata.model_validate_json(response.text)
+    print(response)
+    print(type(article))
     print(article)
 
 if __name__ == "__main__":

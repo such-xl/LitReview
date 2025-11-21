@@ -73,6 +73,7 @@ def render_upload_page():
                 
                 unparsed_path.write_bytes(uploaded_file.read())
                 
+        
 
                 # 创建解析器（MinerU支持LLM）
                 # if parser_type == "mineru":

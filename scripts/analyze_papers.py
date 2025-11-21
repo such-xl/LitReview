@@ -13,11 +13,12 @@
 # from src.analysis.extractor import PaperExtractor
 
 import os
+import pathlib
+from config.settings import settings
 from pydantic import BaseModel, Field
 from typing import List
 from google import genai
 from google.genai import types
-import pathlib
 
 class Author(BaseModel):
     name: str = Field(...)
@@ -33,13 +34,13 @@ class ArticleMetadata(BaseModel):
     contributions: List[str] = Field(default_factory=list)
     ai_summary: str = Field("", description="AI-generated short summary")
 
-def analyze_paper(paper_path,api_key,proxy):
+def analyze_paper(paper_path):
     """analyze sigle paper 分析整个PDF文档"""
-    if proxy:
-        os.environ['HTTP_PROXY'] = proxy
-        os.environ['HTTPS_PROXY'] = proxy
+    if settings.PROXY:
+        os.environ['HTTP_PROXY'] = settings.PROXY
+        os.environ['HTTPS_PROXY'] = settings.PROXY 
 
-    client = genai.Client(api_key=api_key)
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     filepath = pathlib.Path(paper_path)
 
@@ -97,114 +98,5 @@ if __name__ == "__main__":
     contributions=['Proposed a curiosity-driven Reinforcement Learning (RL) framework for Dynamic Flexible Job Shop Scheduling (DFJSP) with stochastic job arrivals.', 'Incorporated a curiosity-based intrinsic reward to alleviate exploration deficiency and encourage novel and informative state exploration.', 'Demonstrated that intrinsic motivation consistently improves total tardiness and accelerates convergence compared to a baseline RL agent.', 'Showed that the relative effectiveness of intrinsic motivation mechanisms (ICM and RND) depends on system load and scenario characteristics (ICM for low-load, RND for high-load).'] 
     
     ai_summary='This paper introduces a curiosity-driven Reinforcement Learning (RL) framework for Dynamic Flexible Job Shop Scheduling (DFJSP) to address sample inefficiency from sparse and delayed rewards. By incorporating an intrinsic reward, the framework encourages exploration of novel states, improving sample efficiency and consistently reducing total tardiness. Experimental results indicate that curiosity-driven exploration, particularly with ICM or RND, effectively enhances adaptive and data-efficient scheduling under uncertainty, with their effectiveness varying based on system load conditions.'
-    
     """
-#     # 初始化
-#     sql_manager = SQLManager(str(settings.sqlite_path))
-#     vector_manager = VectorManager(str(settings.chroma_path))
-    
-#     # 创建LLM
-#     llm = LLMFactory.create_llm(
-#         provider=llm_provider,
-#         model=model or settings.DEFAULT_LOCAL_MODEL,
-#         base_url=settings.OLLAMA_BASE_URL
-#     )
-    
-#     extractor = PaperExtractor(llm)
-    
-#     # 获取论文
-#     paper = sql_manager.get_paper(paper_id)
-#     if not paper:
-#         print(f"论文不存在: {paper_id}")
-#         return False
-    
-#     print(f"分析论文 (ID: {paper_id}): {paper['title']}")
-    
-#     # 提取信息
-#     try:
-#         analysis = extractor.extract_info(paper['raw_text'] or paper['markdown_text'])
-        
-#         # 保存分析结果
-#         sql_manager.add_analysis(paper_id, analysis, f"{llm_provider}/{model or settings.DEFAULT_LOCAL_MODEL}")
-        
-#         print(f"✓ 分析完成")
-#         print(f"  研究问题: {analysis['research_question'][:100]}...")
-#         print(f"  关键词: {', '.join(analysis['keywords'][:5])}")
-        
-#         # 保存分析向量
-#         analysis_text = f"""
-# 研究问题: {analysis['research_question']}
-# 方法: {analysis['methodology']}
-# 主要发现: {' '.join(analysis['main_findings'])}
-# 核心贡献: {' '.join(analysis['key_contributions'])}
-# 关键词: {' '.join(analysis['keywords'])}
-# """
-#         vector_manager.add_analysis(paper_id, analysis_text, {
-#             "paper_id": paper_id,
-#             "title": paper['title']
-#         })
-        
-#         return True
-        
-#     except Exception as e:
-#         print(f"✗ 分析失败: {e}")
-#         return False
-
-# def analyze_all_papers(llm_provider: str = "ollama", model: str = None):
-#     """分析所有未分析的论文"""
-    
-#     sql_manager = SQLManager(str(settings.sqlite_path))
-    
-#     # 获取所有论文
-#     papers = sql_manager.get_all_papers()
-    
-#     if not papers:
-#         print("没有找到论文")
-#         return
-    
-#     print(f"找到 {len(papers)} 篇论文")
-    
-#     # 过滤已分析的论文
-#     unanalyzed = []
-#     for paper in papers:
-#         analysis = sql_manager.get_paper_analysis(paper['id'])
-#         if not analysis:
-#             unanalyzed.append(paper)
-    
-#     if not unanalyzed:
-#         print("所有论文都已分析")
-#         return
-    
-#     print(f"需要分析 {len(unanalyzed)} 篇论文")
-    
-#     success_count = 0
-#     for paper in tqdm(unanalyzed, desc="分析进度"):
-#         if analyze_paper(paper['id'], llm_provider, model):
-#             success_count += 1
-    
-#     print(f"\n分析完成: {success_count}/{len(unanalyzed)} 成功")
-
-# def main():
-#     import argparse
-    
-#     parser = argparse.ArgumentParser(description="分析论文并提取关键信息")
-#     parser.add_argument("--paper-id", type=int, help="指定论文ID")
-#     parser.add_argument("--all", action="store_true", help="分析所有未分析的论文")
-#     parser.add_argument("--provider", default="ollama", 
-#                        choices=["ollama", "openai", "claude"],
-#                        help="LLM提供商 (默认: ollama)")
-#     parser.add_argument("--model", help="模型名称")
-    
-#     args = parser.parse_args()
-    
-#     if args.paper_id:
-#         analyze_paper(args.paper_id, args.provider, args.model)
-#     elif args.all:
-#         analyze_all_papers(args.provider, args.model)
-#     else:
-#         print("请指定 --paper-id 或 --all")
-#         parser.print_help()
-
-# if __name__ == "__main__":
-#     main()
 

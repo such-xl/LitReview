@@ -6,33 +6,20 @@ import time
 
 
 class MinerUParser:
-    """使用 MinerU (GPU加速) 解析 PDF"""
+    """使用 MinerU (Docker) 解析 PDF"""
     
-    def __init__(self, use_gpu=True, output_dir="./data/MinerU"):
+    def __init__(self, output_dir="./data/MinerU", backend="vlm-http-client", vlm_url="http://127.0.0.1:30000"):
         """初始化MinerU解析器
         
         Args:
-            use_gpu: 是否使用GPU加速
             output_dir: 输出目录
+            backend: VLM后端类型
+            vlm_url: VLM服务URL
         """
-        self.use_gpu = use_gpu
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
-        self._check_gpu()
-    
-    def _check_gpu(self):
-        """检查GPU可用性"""
-        if self.use_gpu:
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    print(f"✓ GPU 可用: {torch.cuda.get_device_name(0)}")
-                else:
-                    print("⚠ GPU 不可用，将使用 CPU")
-                    self.use_gpu = False
-            except ImportError:
-                print("⚠ PyTorch 未安装，将使用 CPU")
-                self.use_gpu = False
+        self.backend = backend
+        self.vlm_url = vlm_url
     
     def parse(self, pdf_path: str, timeout=300) -> str:
         """解析PDF文件，返回Markdown文本
@@ -45,13 +32,10 @@ class MinerUParser:
             str: 解析后的Markdown文本
         """
         pdf_path = Path(pdf_path)
-        
-        print(f"{'🚀 GPU' if self.use_gpu else '🐢 CPU'} 加速解析: {pdf_path.name}")
+        print(f"🚀 解析: {pdf_path.name}")
         
         # 使用MinerU解析
-        cmd = ["magic-pdf", "-p", str(pdf_path), "-o", str(self.output_dir)]
-        if self.use_gpu:
-            cmd.extend(["--method", "auto"])
+        cmd = ["mineru", "-p", str(pdf_path), "-o", str(self.output_dir), "-b", self.backend, "-u", self.vlm_url]
         
         print(f"执行命令: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -63,9 +47,8 @@ class MinerUParser:
         
         print("✓ MinerU命令执行完成，等待文件生成...")
         
-        # 等待文件生成（最多等待30秒）
-        markdown_text = self._read_markdown_output(pdf_path, wait_time=30)
-        return markdown_text
+        # 等待文件生成
+        return self._read_markdown_output(pdf_path, wait_time=300)
     
     def _read_markdown_output(self, pdf_path: Path, wait_time=30) -> str:
         """读取生成的Markdown文件，支持等待"""
@@ -189,12 +172,13 @@ class MinerUChunker:
 
 if __name__ == "__main__":
     # 使用示例
-    chunker = MinerUChunker(parser=MinerUParser(use_gpu=True))
+    chunker = MinerUParser()
     
     pdf_file = "data/pdfs/unparsed/conference_101719.pdf"
-    if Path(pdf_file).exists():
-        chunks = chunker.parse_and_chunk(pdf_file, max_chunk_size=1500)
-        print(f"\n✓ 解析完成，共 {len(chunks)} 个块")
-        print(f"\n第一块预览:\n{chunks[0]['text'][:200]}...")
-    else:
-        print(f"文件不存在: {pdf_file}")
+    chunker.parse(pdf_path=pdf_file)
+    # if Path(pdf_file).exists():
+    #     chunks = chunker.parse_and_chunk(pdf_file, max_chunk_size=1500)
+    #     print(f"\n✓ 解析完成，共 {len(chunks)} 个块")
+    #     print(f"\n第一块预览:\n{chunks[0]['text'][:200]}...")
+    # else:
+    #     print(f"文件不存在: {pdf_file}")

@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     DEFAULT_LOCAL_MODEL: str = "llama2"
     # Gemini 配置
-    GEMINI_API_KEY = "AIzaSyBYYHeJp7k4cCBcdbaJGTAnpvwmK_10O80"
-    PROXY = "192.168.31.112:10807"
+    GEMINI_API_KEY: Optional[str] = None
+    PROXY: Optional[str] = None
     # 嵌入模型配置
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DEVICE: str = "cpu"

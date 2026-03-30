@@ -1,27 +1,25 @@
-# LitReview - 智能文献综述助手
+# LitReview
 
-基于RAG技术的智能文献综述生成系统，支持PDF解析、语义检索和自动综述生成。
+一个面向个人研究场景的文献综述助手，核心流程是：
 
-**LitReview** = Literature Review Assistant
+`PDF 导入 -> SQLite/ChromaDB 建库 -> 检索 -> 综述生成`
 
-## 功能特性
+当前仓库已经完成了一次收口，优先保留稳定主链路。Web 上传默认使用 `PyMuPDF`，LLM 元数据增强和 MinerU 高质量解析仍保留实验代码，但不再作为默认入口。
 
-- 📄 自动解析PDF论文（含公式、表格）
-- 🤖 LLM智能提取元数据（标题、作者、摘要等）
-- 💾 自动存入数据库（SQLite + ChromaDB）
-- 🔍 语义检索相关论文
-- 📝 自动生成文献综述
-- 🌐 支持多种LLM（Ollama/OpenAI/Claude）
-- 🖥️ 友好的Web界面
+## 当前可用功能
 
-## 技术栈
+- PDF 上传并入库
+- SQLite 存储论文元信息和全文
+- ChromaDB 全文/摘要向量索引
+- 语义检索和混合检索
+- 基于已入库论文生成摘要或综述
+- Streamlit Web 界面
 
-- **PDF解析**: MinerU / Marker / PyMuPDF
-- **向量数据库**: ChromaDB
-- **嵌入模型**: sentence-transformers
-- **LLM集成**: LiteLLM + Ollama
-- **数据库**: SQLite
-- **Web框架**: Streamlit
+## 当前状态
+
+- 稳定主链路：`PyMuPDF + SQLite + ChromaDB + Streamlit`
+- 可选能力：Ollama / OpenAI / Claude / Gemini
+- 实验能力：MinerU、Marker、LLM 元数据提取
 
 ## 快速开始
 
@@ -29,16 +27,23 @@
 
 ```bash
 pip install -r requirements.txt
+```
 
-# 可选：安装 MinerU 用于高质量 PDF 解析
-pip install magic-pdf[full]
+如果你只想先跑核心功能，至少需要这些关键依赖：
+
+```bash
+pip install streamlit chromadb PyMuPDF sentence-transformers pydantic pydantic-settings
 ```
 
 ### 2. 配置环境变量
 
+项目不再内置任何 API Key。可在 `.env` 中配置，例如：
+
 ```bash
-cp .env.example .env
-# 编辑 .env 文件，配置API密钥等
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...
+OLLAMA_BASE_URL=http://localhost:11434
 ```
 
 ### 3. 初始化数据库
@@ -47,115 +52,66 @@ cp .env.example .env
 python scripts/init_database.py
 ```
 
-### 4. 安装Ollama（可选，用于本地模型）
+如果当前环境未安装 `chromadb`，脚本会只初始化 SQLite 并给出提示。
 
-```bash
-# macOS/Linux
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# 下载模型
-ollama pull llama2
-```
-
-### 5. 运行应用
+### 4. 运行应用
 
 ```bash
 streamlit run web/app.py
 ```
 
-## PDF 解析器选择
+## Web 使用说明
 
-项目支持多种 PDF 解析器，可根据需求选择：
+1. 打开“上传论文”，上传 PDF。
+2. 系统会解析文本、写入 SQLite，并建立向量索引。
+3. 在“搜索论文”中执行语义或混合检索。
+4. 在“生成综述”中基于检索结果生成摘要或综述。
 
-| 解析器 | 优势 | 适用场景 |
-|--------|------|----------|
-| **MinerU** | GPU加速、高质量、支持公式表格 | 推荐，适合大批量处理 |
-| **Marker** | 质量好、支持公式 | 中等规模处理 |
-| **PyMuPDF** | 速度快、轻量级 | 快速预览、简单文档 |
-| **LLM** | 最高质量、智能理解 | 小批量高质量需求 |
+## 命令行
 
-### 使用 MinerU + LLM
-
-```python
-from src.parsers.mineru_chunker import create_mineru_parser
-
-# 创建带LLM的MinerU解析器（推荐）
-parser = create_mineru_parser(
-    use_gpu=True,
-    llm_provider="ollama",
-    llm_model="llama2"
-)
-result = parser.parse("data/pdfs/paper.pdf")
-
-print(result.title)      # LLM智能提取
-print(result.authors)    # 高准确率
-print(result.abstract)   # 完整摘要
-```
-
-详细使用说明:
-- [MinerU 集成指南](docs/MINERU_INTEGRATION.md)
-- [MinerU + LLM 使用](docs/MINERU_LLM_USAGE.md)
-- [Web上传功能](docs/WEB_UPLOAD_GUIDE.md)
-
-## 项目结构
-
-```
-literature-review-rag/
-├── config/              # 配置文件
-├── data/               # 数据目录
-│   ├── pdfs/          # PDF文件
-│   ├── database/      # 数据库文件
-│   └── logs/          # 日志
-├── src/               # 源代码
-│   ├── parsers/       # PDF解析
-│   ├── database/      # 数据库操作
-│   ├── llm/           # LLM集成
-│   ├── analysis/      # 论文分析
-│   ├── retrieval/     # 检索模块
-│   └── synthesis/     # 综述生成
-├── scripts/           # 工具脚本
-├── web/              # Web界面
-└── tests/            # 测试
-
-```
-
-## 开发进度
-
-- [x] Phase 1: 基础设施搭建
-- [x] Phase 2: PDF解析 (PyMuPDF/Marker/MinerU)
-- [x] Phase 3: LLM集成 (Ollama/OpenAI/Claude)
-- [x] Phase 4: 向量检索 (ChromaDB)
-- [x] Phase 5: LLM智能元数据提取
-- [x] Phase 6: Web上传界面
-- [ ] Phase 7: 综述生成
-- [ ] Phase 8: 完善Web界面
-
-## 测试
-
-### 测试完整上传流程
+导入论文：
 
 ```bash
-# 测试单个PDF（使用LLM + GPU）
-python scripts/test_upload_pipeline.py data/pdfs/paper.pdf
-
-# 不使用LLM
-python scripts/test_upload_pipeline.py data/pdfs/paper.pdf --no-llm
-
-# 不使用GPU
-python scripts/test_upload_pipeline.py data/pdfs/paper.pdf --no-gpu
+python scripts/import_papers.py data/pdfs/ --parser pymupdf
 ```
 
-### 使用Web界面
+搜索论文：
 
-1. 启动应用: `streamlit run web/app.py`
-2. 在侧边栏配置LLM（推荐Ollama）
-3. 点击"📤 上传论文"
-4. 选择MinerU解析器
-5. 勾选"使用LLM提取元数据"
-6. 上传PDF文件
+```bash
+python scripts/search_papers.py search "deep learning"
+```
 
-详见 [Web上传指南](docs/WEB_UPLOAD_GUIDE.md)
+生成综述：
 
-## 许可证
+```bash
+python scripts/generate_review.py "深度学习" -o review.md
+```
 
-MIT License
+上传链路测试：
+
+```bash
+python scripts/test_upload_pipeline.py data/pdfs/paper.pdf --parser pymupdf
+```
+
+## 目录
+
+```text
+config/          配置
+data/            数据目录
+docs/            文档
+scripts/         命令行脚本
+src/             核心模块
+web/             Streamlit 界面
+tests/           测试
+```
+
+## 文档
+
+- [快速开始](docs/QUICKSTART.md)
+- [安装说明](docs/INSTALL.md)
+- [Web 上传说明](docs/WEB_UPLOAD_GUIDE.md)
+- [项目现状](docs/INTEGRATION_SUMMARY.md)
+
+## 说明
+
+仓库中仍保留了一些未完全收口的实验模块，尤其是 MinerU 和部分 LLM 元数据抽取代码。如果你的目标是先把项目跑起来，建议只走默认的 `PyMuPDF` 路线。

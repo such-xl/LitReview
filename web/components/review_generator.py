@@ -1,7 +1,23 @@
+from datetime import datetime
+from pathlib import Path
+import re
+
 import streamlit as st
 from src.llm import LLMFactory
 from src.synthesis import LiteratureReviewGenerator, CitationManager
 from config import settings
+
+def _build_review_output_path(topic: str) -> Path:
+    """为综述生成稳定的本地保存路径。"""
+
+    safe_topic = re.sub(r'[\\/:*?"<>|]+', "_", topic).strip()
+    safe_topic = safe_topic or "literature_review"
+
+    output_dir = Path("data/reviews")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return output_dir / f"{safe_topic}_{timestamp}.md"
 
 def render_review_page():
     st.header("📝 生成文献综述")
@@ -82,13 +98,18 @@ def render_review_page():
                 st.markdown(bibliography)
                 
                 full_text = f"# {topic}\n\n{review_text}\n\n## 参考文献\n\n{bibliography}"
+
+                output_path = _build_review_output_path(topic)
+                output_path.write_text(full_text, encoding="utf-8")
                 
                 st.download_button(
                     label="📥 下载综述",
                     data=full_text,
-                    file_name=f"{topic}_review.md",
+                    file_name=output_path.name,
                     mime="text/markdown"
                 )
+
+                st.caption(f"已自动保存到: `{output_path}`")
                 
                 st.success("✅ 综述生成完成！")
                 

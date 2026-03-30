@@ -36,7 +36,7 @@ class VectorManager:
         if metadatas is None:
             metadatas = [{"paper_id": paper_id, "chunk_index": i} for i in range(len(text_chunks))]
         
-        self.fulltext_collection.add(
+        self.fulltext_collection.upsert(
             documents=text_chunks,
             ids=ids,
             metadatas=metadatas
@@ -47,7 +47,7 @@ class VectorManager:
         if metadata is None:
             metadata = {"paper_id": paper_id}
         
-        self.abstract_collection.add(
+        self.abstract_collection.upsert(
             documents=[abstract],
             ids=[f"paper_{paper_id}_abstract"],
             metadatas=[metadata]
@@ -58,7 +58,7 @@ class VectorManager:
         if metadata is None:
             metadata = {"paper_id": paper_id}
         
-        self.analysis_collection.add(
+        self.analysis_collection.upsert(
             documents=[analysis_text],
             ids=[f"paper_{paper_id}_analysis"],
             metadatas=[metadata]

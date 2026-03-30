@@ -1,4 +1,8 @@
 from .sql_manager import SQLManager
-from .vector_manager import VectorManager
+
+try:
+    from .vector_manager import VectorManager
+except ModuleNotFoundError:
+    VectorManager = None
 
 __all__ = ['SQLManager', 'VectorManager']

@@ -11,9 +11,19 @@ sys.path.insert(0, str(project_root))
 
 from config import settings
 from src.database import SQLManager, VectorManager
-from src.parsers.marker_parser import MarkerParser
-from src.parsers.pymupdf_parser import PyMuPDFParser
-from src.parsers.text_chunker import TextChunker
+from src.parsers import ParserFactory, TextChunker
+
+def parse_with_fallback(pdf_path: str, parser_type: str):
+    errors = []
+
+    for candidate in ParserFactory.resolve_parser_order(parser_type):
+        try:
+            parser = ParserFactory.create_parser(candidate, use_gpu=False)
+            return parser.parse(pdf_path), candidate
+        except Exception as exc:
+            errors.append(f"{candidate}: {exc}")
+
+    raise RuntimeError(" ; ".join(errors))
 
 def import_pdf(pdf_path: str, parser_type: str = "pymupdf"):
     """导入单个PDF"""
@@ -22,29 +32,19 @@ def import_pdf(pdf_path: str, parser_type: str = "pymupdf"):
     vector_manager = VectorManager(str(settings.chroma_path))
     chunker = TextChunker(settings.CHUNK_SIZE, settings.CHUNK_OVERLAP)
     
-    # 选择解析器
-    if parser_type == "marker":
-        try:
-            print("0使用PyMuPDF解析器")
-            parser = MarkerParser()
-        except ImportError:
-            print("Marker未安装，使用PyMuPDF")
-            parser = PyMuPDFParser()
-    else:
-        print("1使用PyMuPDF解析器")
-        parser = PyMuPDFParser()
-    
     print(f"解析PDF: {pdf_path}")
     
     try:
         # 解析PDF
-        parsed = parser.parse(pdf_path)
+        parsed, actual_parser = parse_with_fallback(pdf_path, parser_type)
+        print(f"✓ 使用解析器: {actual_parser}")
         
         # 保存到数据库
         paper_id = sql_manager.add_paper(
             title=parsed.title,
             pdf_path=pdf_path,
-            authors=', '.join(parsed.authors),
+            authors=", ".join(parsed.authors),
+            abstract=parsed.abstract,
             raw_text=parsed.full_text,
             markdown_text=parsed.markdown_text
         )
@@ -95,8 +95,8 @@ def main():
     
     parser = argparse.ArgumentParser(description="导入PDF论文到数据库")
     parser.add_argument("path", help="PDF文件或目录路径")
-    parser.add_argument("--parser", choices=["marker", "pymupdf"], default="pymupdf", 
-                       help="PDF解析器类型 (默认: pymupdf)")
+    parser.add_argument("--parser", choices=["auto", "marker", "mineru", "pymupdf"], default="auto",
+                       help="PDF解析器类型 (默认: auto)")
     
     args = parser.parse_args()
     

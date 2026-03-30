@@ -3,6 +3,7 @@
 
 import sys
 from pathlib import Path
+from typing import Optional
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
@@ -127,7 +128,6 @@ def generate_summary(topic: str, n_papers: int = 10):
 
 def main():
     import argparse
-    from typing import Optional
     
     parser = argparse.ArgumentParser(description="生成文献综述")
     parser.add_argument("topic", help="研究主题")

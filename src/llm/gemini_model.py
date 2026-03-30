@@ -1,51 +1,36 @@
-from typing import Optional, Dict, Any
-import json
-from .llm_interface import LLMInterface
 import os
-from pydantic import BaseModel
-from google.genai import types
+import json
+from typing import Any, Dict, Optional
 
-# Define the desired output structure using Pydantic
-class Recipe(BaseModel):
-    recipe_name: str
-    description: str
-    ingredients: list[str]
-    steps: list[str]
-# from google import genai
-# os.environ['HTTP_PROXY'] = 'http://192.168.31.112:10807'
-# os.environ['HTTPS_PROXY'] = 'http://192.168.31.112:10807' 
-# # The client gets the API key from the environment variable `GEMINI_API_KEY`.
-# client = genai.Client(api_key='AIzaSyBYYHeJp7k4cCBcdbaJGTAnpvwmK_10O80')
+from .llm_interface import LLMInterface
 
-# response = client.models.generate_content(
-#     model="gemini-2.5-flash", contents="Explain how AI works in a few words"
-# )
-# print(response)
-# print(response.text)
+
 class GeminiModel(LLMInterface):
     """Google Gemini模型"""
     
     def __init__(self, api_key: str, model: str = "gemini-2.5-flash", proxy: Optional[str] = None):
         try:
             from google import genai
-            
+
             if proxy:
-                os.environ['HTTP_PROXY'] = proxy
-                os.environ['HTTPS_PROXY'] = proxy
-            
+                os.environ["HTTP_PROXY"] = proxy
+                os.environ["HTTPS_PROXY"] = proxy
+
             self.client = genai.Client(api_key=api_key)
             self.model = model
         except ImportError:
             raise ImportError("请安装: pip install -q -U google-genai")
-    def test(self, prompt:str):
+
+    def test(self, prompt: str):
         response = self.client.models.generate_content(
             contents=prompt,
             model=self.model
         )
         return response.text
+
     def generate(
-        self, 
-        prompt: str, 
+        self,
+        prompt: str,
         system_prompt: Optional[str] = None,
         temperature: float = 0.3,
         max_tokens: int = 4000
@@ -58,11 +43,12 @@ class GeminiModel(LLMInterface):
             "max_output_tokens": max_tokens,
         }
         
-        response = self.model.generate_content(
-            full_prompt,
-            generation_config=generation_config
+        response = self.client.models.generate_content(
+            model=self.model,
+            contents=full_prompt,
+            config=generation_config,
         )
-        
+
         return response.text
     
     def generate_structured(

@@ -3,6 +3,7 @@ from .llm_interface import LLMInterface
 from .ollama_model import OllamaModel
 from .litellm_model import LiteLLMModel
 from .openai_compatible import OpenAICompatibleModel
+from .gemini_model import GeminiModel
 class LLMFactory:
     @staticmethod
     def create_llm(

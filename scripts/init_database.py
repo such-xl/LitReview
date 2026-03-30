@@ -20,9 +20,12 @@ def main():
     print("✓ SQLite数据库初始化完成")
     
     # 初始化ChromaDB
-    print(f"创建ChromaDB: {settings.chroma_path}")
-    vector_manager = VectorManager(str(settings.chroma_path))
-    print("✓ ChromaDB初始化完成")
+    if VectorManager is None:
+        print("⚠ 跳过 ChromaDB 初始化：当前环境未安装 chromadb")
+    else:
+        print(f"创建ChromaDB: {settings.chroma_path}")
+        VectorManager(str(settings.chroma_path))
+        print("✓ ChromaDB初始化完成")
     
     print("\n数据库初始化成功！")
     print(f"SQLite路径: {settings.sqlite_path}")

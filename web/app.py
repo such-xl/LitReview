@@ -12,7 +12,7 @@ from src.retrieval import QueryEngine
 from web.components.search import render_search_page
 from web.components.review_generator import render_review_page
 from web.components.papers import render_papers_page
-from web.components.upload_2 import render_upload_page
+from web.components.upload import render_upload_page
 
 st.set_page_config(
     page_title="LitReview - 智能文献综述助手",
@@ -40,6 +40,7 @@ def main():
     papers = st.session_state.sql_manager.get_all_papers()
     st.sidebar.markdown("---")
     st.sidebar.metric("论文总数", len(papers))
+    st.sidebar.caption("当前上传链路默认使用 PyMuPDF，优先保证可用性。")
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("⚙️ 配置")

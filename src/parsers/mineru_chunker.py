@@ -1,27 +1,37 @@
-import subprocess
-from pathlib import Path
-from typing import List, Dict
 import re
+import subprocess
 import time
+from pathlib import Path
+from typing import Dict, List
+
+from . import PDFParser, ParsedPaper
 
 
-class MinerUParser:
-    """使用 MinerU (Docker) 解析 PDF"""
+class MinerUParser(PDFParser):
+    """使用 MinerU CLI 解析 PDF，并转换为项目统一的 ParsedPaper。"""
     
-    def __init__(self, output_dir="./data/MinerU", backend="vlm-http-client", vlm_url="http://127.0.0.1:30000"):
+    def __init__(
+        self,
+        output_dir: str = "./data/MinerU",
+        backend: str = "vlm-http-client",
+        vlm_url: str = "http://127.0.0.1:30000",
+        use_gpu: bool = True,
+    ):
         """初始化MinerU解析器
         
         Args:
             output_dir: 输出目录
             backend: VLM后端类型
             vlm_url: VLM服务URL
+            use_gpu: 兼容工厂接口，当前仅保留在实例上供后续扩展
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True, parents=True)
         self.backend = backend
         self.vlm_url = vlm_url
+        self.use_gpu = use_gpu
     
-    def parse(self, pdf_path: str, timeout=300) -> str:
+    def parse(self, pdf_path: str, timeout: int = 300) -> ParsedPaper:
         """解析PDF文件，返回Markdown文本
         
         Args:
@@ -29,7 +39,7 @@ class MinerUParser:
             timeout: 超时时间（秒）
             
         Returns:
-            str: 解析后的Markdown文本
+            ParsedPaper: 项目统一格式的解析结果
         """
         pdf_path = Path(pdf_path)
         print(f"🚀 解析: {pdf_path.name}")
@@ -48,7 +58,8 @@ class MinerUParser:
         print("✓ MinerU命令执行完成，等待文件生成...")
         
         # 等待文件生成
-        return self._read_markdown_output(pdf_path, wait_time=300)
+        markdown_text = self._read_markdown_output(pdf_path, wait_time=300)
+        return self._build_parsed_paper(markdown_text)
     
     def _read_markdown_output(self, pdf_path: Path, wait_time=30) -> str:
         """读取生成的Markdown文件，支持等待"""
@@ -86,6 +97,114 @@ class MinerUParser:
         
         raise FileNotFoundError(f"未找到Markdown文件: {pdf_name} (等待{wait_time}秒后超时)")
 
+    def _build_parsed_paper(self, markdown_text: str) -> ParsedPaper:
+        """将 MinerU 输出的 Markdown 归一化为项目内统一结构。"""
+        title = self._extract_title(markdown_text)
+        authors = self._extract_authors(markdown_text)
+        abstract = self._extract_abstract(markdown_text)
+        sections = self._extract_sections(markdown_text)
+        tables = self._extract_tables(markdown_text)
+        equations = self._extract_equations(markdown_text)
+        references = self._extract_references(markdown_text)
+
+        return ParsedPaper(
+            title=title,
+            authors=authors,
+            abstract=abstract,
+            full_text=markdown_text,
+            markdown_text=markdown_text,
+            sections=sections,
+            tables=tables,
+            equations=equations,
+            references=references,
+        )
+
+    def _extract_title(self, text: str) -> str:
+        for line in text.splitlines():
+            candidate = line.strip().lstrip("#").strip()
+            if candidate and len(candidate) > 10:
+                return candidate
+        return "Unknown Title"
+
+    def _extract_authors(self, text: str) -> List[str]:
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        for index, line in enumerate(lines[:20]):
+            lower = line.lower()
+            if "author" in lower or "authors" in lower:
+                if index + 1 < len(lines):
+                    authors = [
+                        author.strip()
+                        for author in re.split(r"[,;]| and ", lines[index + 1])
+                        if author.strip()
+                    ]
+                    if authors:
+                        return authors
+        return ["Unknown Author"]
+
+    def _extract_abstract(self, text: str) -> str:
+        match = re.search(
+            r"(?:^|\n)#+\s*Abstract\s*\n(.*?)(?:\n#+\s|\Z)",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if match:
+            return match.group(1).strip()
+        return ""
+
+    def _extract_sections(self, text: str) -> Dict[str, str]:
+        sections: Dict[str, str] = {}
+        current_section = None
+        current_lines: List[str] = []
+
+        for line in text.splitlines():
+            if line.startswith("#"):
+                if current_section:
+                    sections[current_section] = "\n".join(current_lines).strip()
+                current_section = line.lstrip("#").strip()
+                current_lines = []
+            elif current_section:
+                current_lines.append(line)
+
+        if current_section:
+            sections[current_section] = "\n".join(current_lines).strip()
+
+        return sections
+
+    def _extract_tables(self, text: str) -> List[Dict]:
+        tables = []
+        current_table: List[str] = []
+
+        for line in text.splitlines():
+            if line.strip().startswith("|") and line.strip().endswith("|"):
+                current_table.append(line)
+            else:
+                if len(current_table) >= 2:
+                    tables.append({"content": "\n".join(current_table)})
+                current_table = []
+
+        if len(current_table) >= 2:
+            tables.append({"content": "\n".join(current_table)})
+
+        return tables
+
+    def _extract_equations(self, text: str) -> List[str]:
+        equations = []
+        equations.extend(re.findall(r"\$\$(.*?)\$\$", text, re.DOTALL))
+        equations.extend(re.findall(r"\$([^\$]+)\$", text))
+        return [equation.strip() for equation in equations if equation.strip()]
+
+    def _extract_references(self, text: str) -> List[str]:
+        match = re.search(
+            r"(?:^|\n)#+\s*References?\s*\n(.*?)(?:\n#+\s|\Z)",
+            text,
+            re.IGNORECASE | re.DOTALL,
+        )
+        if not match:
+            return []
+
+        ref_lines = [line.strip() for line in match.group(1).splitlines() if line.strip()]
+        return [line for line in ref_lines if len(line) > 20]
+
 
 class MinerUChunker:
     """MinerU解析器的分块工具（用于向量数据库）"""
@@ -104,10 +223,10 @@ class MinerUChunker:
             List[Dict]: [{"text": "...", "index": 0}, ...]
         """
         # 解析PDF
-        markdown_text = self.parser.parse(pdf_path)
+        parsed_paper = self.parser.parse(pdf_path)
         
         # 分块
-        chunks = self._chunk_by_paragraphs(markdown_text, max_chunk_size)
+        chunks = self._chunk_by_paragraphs(parsed_paper.markdown_text, max_chunk_size)
         
         # 添加索引
         return [{"text": chunk, "index": i} for i, chunk in enumerate(chunks)]

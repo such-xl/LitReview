@@ -7,6 +7,13 @@ from .mineru_chunker import MinerUParser
 
 class ParserFactory:
     @staticmethod
+    def resolve_parser_order(parser_type: str) -> tuple[str, ...]:
+        """返回给定策略下的解析器尝试顺序。"""
+        if parser_type == "auto":
+            return ("marker", "mineru", "pymupdf")
+        return (parser_type,)
+
+    @staticmethod
     def create_parser(parser_type: str = "pymupdf", llm_client=None, use_gpu=True) -> PDFParser:
         """创建PDF解析器
         
@@ -20,19 +27,11 @@ class ParserFactory:
                 raise ValueError("LLM解析器需要提供llm_client参数")
             return LLMParser(llm_client)
         elif parser_type == "mineru":
-            try:
-                return MinerUParser(use_gpu=use_gpu)
-            except Exception as e:
-                print(f"MinerU初始化失败: {e}，回退到PyMuPDF")
-                return PyMuPDFParser()
+            return MinerUParser(use_gpu=use_gpu)
         elif parser_type == "marker":
-            try:
-                return MarkerParser()
-            except ImportError:
-                print("Marker未安装，回退到PyMuPDF")
-                return PyMuPDFParser()
+            return MarkerParser()
         elif parser_type == "pymupdf":
             print("使用PyMuPDF解析器")
             return PyMuPDFParser()
         else:
-            raise ValueError(f"不支持的解析器类型: {parser_type}。支持: pymupdf/marker/llm/mineru")
+            raise ValueError(f"不支持的解析器类型: {parser_type}。支持: auto/pymupdf/marker/llm/mineru")

@@ -3,14 +3,7 @@
 ## 1. 安装依赖
 
 ```bash
-# 推荐：使用最小化依赖
-pip install -r requirements-minimal.txt
-
-# 或者：完整依赖
 pip install -r requirements.txt
-
-# 国内用户推荐使用conda或查看 docs/INSTALL_CHINA.md
-# 如果遇到问题，请查看 docs/INSTALL.md
 ```
 
 ## 2. 初始化数据库
@@ -19,65 +12,51 @@ pip install -r requirements.txt
 python scripts/init_database.py
 ```
 
-## 3. 启动Web界面
+## 3. 启动 Web
 
 ```bash
 streamlit run web/app.py
-# 或使用启动脚本
-./run.sh
 ```
 
-## 4. 使用流程
+## 4. 上传论文
 
-### 4.1 上传论文
-1. 点击「上传论文」
-2. 选择PDF文件
-3. 点击「开始导入」
+当前默认上传链路使用 `PyMuPDF`：
 
-### 4.2 搜索论文
-1. 点击「搜索论文」
-2. 输入查询关键词
-3. 选择搜索方法
-4. 查看搜索结果
+1. 打开“上传论文”
+2. 选择 PDF 文件
+3. 点击“开始导入”
 
-### 4.3 生成综述
-1. 点击「生成综述」
-2. 输入研究主题
-3. 选择论文数量和综述类型
-4. 点击「生成综述」
-5. 下载生成的综述
+系统会完成：
 
-## 5. 命令行工具
+- PDF 解析
+- SQLite 入库
+- ChromaDB 向量索引
 
-### 导入论文
-```bash
-python scripts/import_papers.py data/pdfs/
-```
+## 5. 搜索与综述
 
-### 分析论文
-```bash
-python scripts/analyze_papers.py --all
-```
+搜索：
 
-### 搜索论文
 ```bash
 python scripts/search_papers.py search "deep learning"
 ```
 
-### 生成综述
+生成综述：
+
 ```bash
 python scripts/generate_review.py "深度学习" -o review.md
 ```
 
-## 6. 配置Ollama（可选）
+## 6. 可选的 LLM 配置
+
+如果你要启用综述生成或自定义模型，可配置：
 
 ```bash
-# 安装Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# 下载模型
-ollama pull llama2
-
-# 启动服务
-ollama serve
+OLLAMA_BASE_URL=http://localhost:11434
+OPENAI_API_KEY=...
+ANTHROPIC_API_KEY=...
+GEMINI_API_KEY=...
 ```
+
+## 说明
+
+MinerU、Marker 和 LLM 元数据增强仍属于实验性路径，不作为当前默认文档流程。
